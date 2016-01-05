@@ -7,6 +7,12 @@
 #include <boost/math/special_functions/digamma.hpp>
 using namespace Rcpp;
 
+void print_vector(NumericVector x) {
+  for (int i = 0; i < x.size(); i++)
+    std::cout << x[i] << ", ";
+  std::cout << std::endl;
+}
+
 double log_sum(double log_a, double log_b) {
   double v;
   
@@ -36,14 +42,12 @@ NumericMatrix compute_e_log_beta(NumericMatrix lambda, NumericMatrix e_log_beta)
 
 // can be shared with dtm
 // [[Rcpp::export]]
-NumericMatrix compute_e_log_theta(NumericMatrix gammas, NumericMatrix e_log_theta) {
-  for (int d = 0; d < gammas.nrow(); d++) {
-    double gamma_sum = sum(gammas(d, _));
-    //std::cout << "Document: " << d << " gamma sum: " << gamma_sum << std::endl;
-    double dig_sum = boost::math::digamma(gamma_sum);
-    for (int k = 0; k < gammas.ncol(); k++) {
-      e_log_theta(d, k) = boost::math::digamma(gammas(d, k)) - dig_sum;
-    }
+NumericVector compute_e_log_theta(NumericVector gammas, NumericVector e_log_theta) {
+  double gamma_sum = sum(gammas);
+  //std::cout << "Document: " << d << " gamma sum: " << gamma_sum << std::endl;
+  double dig_sum = boost::math::digamma(gamma_sum);
+  for (int k = 0; k < gammas.size(); k++) {
+    e_log_theta[k] = boost::math::digamma(gammas[k]) - dig_sum;
   }
   
   return e_log_theta;
@@ -52,13 +56,16 @@ NumericMatrix compute_e_log_theta(NumericMatrix gammas, NumericMatrix e_log_thet
 // can be shared with dtm
 // [[Rcpp::export]]
 NumericMatrix phi_update(NumericMatrix phi, NumericVector e_log_theta, NumericMatrix e_log_beta) {
-  for (int k = 0; k < phi.nrow(); k++) {
+  for (int w = 0; w < phi.ncol(); w++) {
     double phi_topic_sum = 0.0;
-    for (int w = 0; w < phi.ncol(); w++) {
+    for (int k = 0; k < phi.nrow(); k++) {
       phi(k, w) = e_log_theta[k] + e_log_beta(k, w);  
-      phi_topic_sum = log_sum(phi_topic_sum, phi(k, w));
+      if (k > 0)
+        phi_topic_sum = log_sum(phi_topic_sum, phi(k, w));
+      else
+        phi_topic_sum = phi(k, w);
     }
-    for (int w = 0; w < phi.ncol(); w++) {
+    for (int k = 0; k < phi.nrow(); k++) {
       phi(k, w) = phi(k, w) - phi_topic_sum;
     }
   }
@@ -75,6 +82,7 @@ List gamma_update(NumericVector gamma_row, NumericMatrix phi, NumericVector n, d
     for (int w = 0; w < phi.ncol(); w++) {
       acc += exp(phi(k, w)) * n[w];
     }
+    //std::cout << acc << std::endl;
     gamma_change[k] = std::abs(gamma_row[k] - alpha - acc);
     gamma_row[k] = alpha + acc;
   }
@@ -91,7 +99,7 @@ NumericMatrix lambda_update(NumericMatrix lambda, NumericMatrix dtm, List phis, 
       lambda(k, w) = eta;
       for (int d = 0; d < phis.size(); d++) {
         NumericMatrix phi = as<NumericMatrix>(phis[d]);
-        lambda(k, w) += dtm(d, w) * phi(k, w);
+        lambda(k, w) += dtm(d, w) * exp(phi(k, w));
       }
     }
   }
@@ -157,38 +165,44 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
     phis[d] = mat;
   }
   NumericMatrix gammas(D, K);
-  std::fill(gammas.begin(), gammas.end(), 1.0 / K);
+  std::fill(gammas.begin(), gammas.end(), 1.0);
   NumericMatrix lambda(K, W);
   NumericMatrix e_log_theta(D, K);
   NumericMatrix e_log_beta(K, W);
   NumericVector log_liks(em_max_iter);
   
-  for (int k = 0; k < lambda.nrow(); k++)
+  for (int k = 0; k < K; k++)
     lambda(k, _) = runif(W);
   
   double lold = 1.0;
   double lnew = 10.0;
   int iter = 0;
+  e_log_beta = compute_e_log_beta(lambda, e_log_beta);
+  for (int d = 0; d < D; d++) {
+    e_log_theta(d, _) = compute_e_log_theta(gammas(d, _), e_log_theta(d, _));
+  }
   
   while ((std::abs((lnew - lold) / lold)) > em_tol && iter < em_max_iter) {
-    std::cout << "Change in lhood: " << lnew - lold << std::endl;
+    std::cout << "Fractional change in lhood: " << (lnew - lold) << std::endl;
     std::cout << "Iteration: " << iter << std::endl;
     lold = lnew;
     lnew = 0.0;
-    e_log_beta = compute_e_log_beta(lambda, e_log_beta);
-    e_log_theta = compute_e_log_theta(gammas, e_log_theta);
+    
     for (int d = 0; d < D; d++) {
       double avg_gamma_change = 10.0;
       NumericMatrix phi = as<NumericMatrix>(phis[d]);
       NumericVector gamma_row(gammas.ncol(), 1.0);
+      e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));
       int doc_iter = 0;
       while (avg_gamma_change > gam_tol && doc_iter < doc_max_iter) {
         phis[d] = phi_update(phi, e_log_theta(d, _), e_log_beta);
         List gamma_result = gamma_update(gamma_row, phis[d], dtm(d, _), alpha);
         NumericVector gamma_row = gamma_result["gamma"];
-        gammas(d, _) = gamma_row;
+        gammas(d, _) = gamma_row; 
+        e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));
         avg_gamma_change = gamma_result["avg_gamma_change"];
         doc_iter++;
+        //print_vector(e_log_theta(d, _));
         //std::cout << avg_gamma_change << std::endl;
       } 
     }
@@ -198,6 +212,8 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
       lnew += log_lik(dtm(d, _), phis[d], gammas(d, _), e_log_theta(d, _), e_log_beta,
                       lambda, alpha, eta, D);
     }
+    e_log_beta = compute_e_log_beta(lambda, e_log_beta);
+    
     log_liks[iter] = lnew;
     iter++;
     std::cout << "Log Likelihood: " << lnew << std::endl;
