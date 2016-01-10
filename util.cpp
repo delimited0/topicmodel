@@ -1,8 +1,3 @@
-/* 
- * taylor approximation of first derivative of the log gamma function
- *
- */
-
 #include <math.h>
 
 double log_sum(double log_a, double log_b) {
