@@ -30,7 +30,7 @@ List lda_online(NumericMatrix dtm, int K, double alpha, double eta, double kappa
     e_log_theta(t, _) = compute_e_log_theta(gamma_row, e_log_theta(t, _));
     int doc_iter = 0;
     if (t % 100 == 0)
-      std::cout << "Fitting Document: " << t << std::endl;
+      Rcout << "Fitting Document: " << t << std::endl;
     
     while (avg_gamma_change > gam_tol && doc_iter < doc_max_iter) {
       phis[t] = phi_update(phis[t], e_log_theta(t, _), e_log_beta);

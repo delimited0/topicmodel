@@ -6,19 +6,15 @@
 #include "util.h"
 #include "lda_funcs.h"
 
-void print_vector(NumericVector x) {
-  for (int i = 0; i < x.size(); i++)
-    std::cout << x[i] << ", ";
-  std::cout << std::endl;
-}
-
-NumericMatrix lambda_update(NumericMatrix lambda, NumericMatrix dtm, List phis, double eta) {
+NumericMatrix lambda_update(NumericMatrix lambda, NumericMatrix dtm, List phis, double eta,
+                            List doc_words) {
   std::fill(lambda.begin(), lambda.end(), eta);
   for (int d = 0; d < phis.size(); d++) {
     NumericMatrix phi = as<NumericMatrix>(phis[d]);
-    for (int w = 0; w < lambda.nrow(); w++) {
+    NumericVector uniq_words = as<NumericVector>(doc_words[d]);
+    for (int w = 0; w < phi.nrow(); w++) {
       for (int k = 0; k < lambda.ncol(); k++) {
-        lambda(w, k) += dtm(d, w) * exp(phi(w, k));
+        lambda(uniq_words[w], k) += dtm(d, uniq_words[w]) * exp(phi(w, k));
       }
     }
   }
@@ -27,17 +23,18 @@ NumericMatrix lambda_update(NumericMatrix lambda, NumericMatrix dtm, List phis, 
 }
 
 double log_lik(NumericVector n, NumericMatrix phi, NumericVector gamma_row, NumericVector e_log_theta, 
-               NumericMatrix e_log_beta, NumericMatrix lambda, double alpha, double eta, int D) {
+               NumericMatrix e_log_beta, NumericMatrix lambda, double alpha, double eta, int D,
+               NumericVector uniq_words) {
   int K = e_log_beta.ncol();
-  int W = e_log_beta.nrow();
+  int W = uniq_words.size();
   
   double term1 = 0.0;
   for (int w = 0; w < W; w++) {
     double acc = 0.0;
     for (int k = 0; k < K; k++) {
-      acc += exp(phi(w, k)) * (e_log_theta[k] + e_log_beta(w, k) - phi(w, k));
+      acc += exp(phi(w, k)) * (e_log_theta[k] + e_log_beta(uniq_words[w], k) - phi(w, k));
     }
-    term1 += n[w] * acc;
+    term1 += n[uniq_words[w]] * acc;
   }
   
   double term2 = 0.0;
@@ -52,7 +49,8 @@ double log_lik(NumericVector n, NumericMatrix phi, NumericVector gamma_row, Nume
   double term3 = 0.0;
   for (int w = 0; w < W; w++) {
     for (int k = 0; k < K; k++) {
-      term3 += (eta - lambda(w, k)) * e_log_beta(w, k) + lgamma(lambda(w, k));
+      term3 += (eta - lambda(uniq_words[w], k)) * e_log_beta(uniq_words[w], k) + 
+        lgamma(lambda(uniq_words[w], k));
     }
   }
   for (int k = 0; k < K; k++) {
@@ -73,10 +71,18 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
   int D = dtm.nrow();
   int W = dtm.ncol();
   List phis(D);
+  List doc_words(D);
   for (int d = 0; d < D; d++) {
-    NumericMatrix mat(W, K);
+    int nonzero = 0;
+    for (int w = 0; w < W; w++) {
+      if (dtm(d, w) > 0)
+        nonzero++;
+    }
+    NumericMatrix mat(nonzero, K);
+    IntegerVector uniq_words = whichPositive(dtm(d, _));
     std::fill(mat.begin(), mat.end(), 1.0 / K);
     phis[d] = mat;
+    doc_words[d] = uniq_words;
   }
   NumericMatrix gammas(D, K);
   std::fill(gammas.begin(), gammas.end(), 1.0);
@@ -88,17 +94,18 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
   for (int k = 0; k < K; k++)
     lambda(_, k) = runif(W);
   
-  double lold = 1.0;
-  double lnew = 10.0;
+  double lold = 0;
+  double lnew = 0;
   int iter = 0;
+  
   e_log_beta = compute_e_log_beta(lambda, e_log_beta);
   for (int d = 0; d < D; d++) {
     e_log_theta(d, _) = compute_e_log_theta(gammas(d, _), e_log_theta(d, _));
   }
   
-  while ((std::abs((lnew - lold) / lold)) > em_tol && iter < em_max_iter) {
-    std::cout << "Fractional change in lhood: " << std::abs((lnew - lold) / lold) << std::endl;
-    std::cout << "Iteration: " << iter << std::endl;
+  while (((std::abs((lnew - lold) / lold)) > em_tol && iter < em_max_iter) || iter == 0) {
+    Rcout << "Fractional change in lhood: " << std::abs((lnew - lold) / lold) << std::endl;
+    Rcout << "Iteration: " << iter << std::endl;
     lold = lnew;
     lnew = 0.0;
     
@@ -109,26 +116,24 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
       e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));
       int doc_iter = 0;
       if (d % 100 == 0)
-        std::cout << "Fitting Document: " << d << std::endl;
+        Rcout << "Fitting Document: " << d << std::endl;
       while (avg_gamma_change > gam_tol && doc_iter < doc_max_iter) {
-        phis[d] = phi_update(phi, e_log_theta(d, _), e_log_beta);
-        List gamma_result = gamma_update(gamma_row, phis[d], dtm(d, _), alpha);
-        NumericVector gamma_row = gamma_result["gamma"];
+        phi_update(phi, e_log_theta(d, _), e_log_beta, doc_words[d]);
+        avg_gamma_change = gamma_update(gamma_row, phis[d], dtm(d, _), alpha, doc_words[d]);
         gammas(d, _) = gamma_row; 
         e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));
-        avg_gamma_change = gamma_result["avg_gamma_change"];
         doc_iter++;
       }
       lnew += log_lik(dtm(d, _), phis[d], gammas(d, _), e_log_theta(d, _), e_log_beta,
-                      lambda, alpha, eta, D);
+                      lambda, alpha, eta, D, doc_words[d]);
     }
     
-    lambda = lambda_update(lambda, dtm, phis, eta);
+    lambda = lambda_update(lambda, dtm, phis, eta, doc_words);
     e_log_beta = compute_e_log_beta(lambda, e_log_beta);
     
     log_liks[iter] = lnew;
     iter++;
-    std::cout << "Log Likelihood: " << lnew << std::endl;
+    Rcout << "Log Likelihood: " << lnew << std::endl;
   }
   
   List result;
