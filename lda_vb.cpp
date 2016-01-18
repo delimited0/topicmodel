@@ -66,7 +66,7 @@ double log_lik(NumericVector n, NumericMatrix phi, NumericVector gamma_row, Nume
 }
 
 // [[Rcpp::export]]
-List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, double em_tol,
+List lda_vb(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, double em_tol,
              double em_max_iter, double doc_max_iter) {
   int D = dtm.nrow();
   int W = dtm.ncol();
@@ -124,13 +124,15 @@ List lda_vem(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol,
         e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));
         doc_iter++;
       }
-      lnew += log_lik(dtm(d, _), phis[d], gammas(d, _), e_log_theta(d, _), e_log_beta,
-                      lambda, alpha, eta, D, doc_words[d]);
     }
     
     lambda = lambda_update(lambda, dtm, phis, eta, doc_words);
     e_log_beta = compute_e_log_beta(lambda, e_log_beta);
     
+    for (int d = 0; d < D; d++) {
+      lnew += log_lik(dtm(d, _), phis[d], gammas(d, _), e_log_theta(d, _), e_log_beta,
+                      lambda, alpha, eta, D, doc_words[d]);
+    }
     log_liks[iter] = lnew;
     iter++;
     Rcout << "Log Likelihood: " << lnew << std::endl;

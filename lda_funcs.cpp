@@ -1,7 +1,6 @@
 #include "lda_funcs.h"
 #include "util.h"
 
-// [[Rcpp::export]]
 IntegerVector whichPositive(NumericVector x) {
   IntegerVector v = seq(0, x.size()-1);
   return v[x > 0];

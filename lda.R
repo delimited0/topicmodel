@@ -1,4 +1,4 @@
-lda <- function(dtm, K, alpha = 0.01, eta = 0.01, gam_tol = 1e-3, em_tol = 1e-3, 
+lda <- function(dtm, K, alpha = 0.1, eta = 0.01, gam_tol = 1e-3, em_tol = 1e-3, 
                 em_max_iter = 50, doc_max_iter = 100) {
   if (K %% 1 != 0) stop("K must be an integer")
   if (K <= 0) stop("K must be positive")
