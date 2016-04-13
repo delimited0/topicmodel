@@ -3,8 +3,8 @@
 //
 //
 
-#include "util.h"
 #include "lda_funcs.h"
+#include "util.h"
 
 NumericMatrix lambda_update(NumericMatrix lambda, NumericMatrix dtm, List phis, double eta,
                             List doc_words) {

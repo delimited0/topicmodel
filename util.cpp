@@ -1,4 +1,18 @@
-#include <math.h>
+#include <util.h>
+
+IntegerVector whichPositive(NumericVector x) {
+  // return indexes of vector elements > 0
+  IntegerVector v = seq(0, x.size()-1);
+  return v[x > 0];
+}
+
+// [[Rcpp::export]]
+IntegerVector whichEqual(IntegerVector x, int y) {
+  // return indexes of vector elements == y
+  IntegerVector v = seq(0, x.size()-1);
+  return v[x==y];
+}
+
 
 double log_sum(double log_a, double log_b) {
   double v;

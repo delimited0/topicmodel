@@ -1,16 +1,29 @@
-#include "lda_funcs.h"
+#include "dtm_funcs.h"
 
-NumericMatrix compute_e_log_beta(NumericMatrix lambda, NumericMatrix e_log_beta) {
-  NumericVector lambda_dig_sums(lambda.ncol());
-  for (int k = 0; k < lambda.ncol(); k++) {
-    lambda_dig_sums[k] = sum(lambda(_, k));  
-    lambda_dig_sums[k] = digamma(lambda_dig_sums[k]);
-  }
+List compute_e_log_beta(List m, List v, NumericMatrix zeta, List e_log_beta) {
+  int T = e_log_beta.size();
+  NumericMatrix temp_mat = as<NumericMatrix>(v[0]);
+  int W = temp_mat.nrow();
+  int K = temp_mat.ncol();
   
-  for (int w = 0; w < lambda.nrow(); w++) {
-    for (int k = 0; k < lambda.ncol(); k++) {
-      e_log_beta(w, k) = digamma(lambda(w, k)) - lambda_dig_sums[k];
+  for (int t = 0; t < T; t++) {
+    NumericMatrix mat(W, K);
+    NumericMatrix m_t = m[t];
+    NumericMatrix v_t = v[t];
+    NumericMatrix exp_sum(m_t.nrow(), m_t.ncol());
+    for (int w = 0; w < W; w++) {
+      for (int k = 0; k < K; k++) {
+        exp_sum(w, k) = exp(m_t(w, k) + v_t(w, k) / 2.0);
+      }
     }
+    
+    for (int k = 0; k < K; k++) {
+      double exp_sum_k = sum(exp_sum(_, k));
+      for (int w = 0; w < W; w++) {
+        mat(w, k) = m_t(w, k) - (1.0 / zeta(t, k)) * exp_sum_k - log(zeta(t, k)) + 1.0;
+      }
+    }
+    e_log_beta[t] = mat;
   }
   
   return e_log_beta;
@@ -65,4 +78,8 @@ double gamma_update(NumericVector& gamma_row, NumericMatrix phi, NumericVector n
   
   double avg_gamma_change = sum(gamma_change) / gamma_change.size();
   return avg_gamma_change;
+}
+
+void forward_backward(List& m, List& v, double sigma, double nu) {
+  
 }
