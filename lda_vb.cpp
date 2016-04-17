@@ -160,7 +160,7 @@ List lda_vb(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, 
       theta(d, k) = gamma[k] / gam_sum;
     }
   }
-  result["gamma"] = theta;
+  result["theta"] = theta;
   result.attr("class") = "lda";
   return result;
 }
