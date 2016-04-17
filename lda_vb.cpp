@@ -152,6 +152,15 @@ List lda_vb(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, 
       beta(w, k) = lambda(w, k) / colsum;
   }
   result["beta"] = beta;
+  NumericMatrix theta(D, K);
+  for (int d = 0; d < D; d++) {
+    NumericVector gamma = gammas[d];
+    double gam_sum = sum(gamma);
+    for (int k = 0; k < K; k++) {
+      theta(d, k) = gamma[k] / gam_sum;
+    }
+  }
+  result["gamma"] = theta;
   result.attr("class") = "lda";
   return result;
 }
