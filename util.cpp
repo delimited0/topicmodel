@@ -13,7 +13,6 @@ IntegerVector whichEqual(IntegerVector x, int y) {
   return v[x==y];
 }
 
-
 double log_sum(double log_a, double log_b) {
   double v;
   

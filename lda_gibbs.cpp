@@ -21,7 +21,6 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
   NumericVector doc_id(tot_words);
   int i = 0;
   for (int d = 0; d < D; d++) {
-    Rcout << "Initializing doc " << d << std::endl;
     for (int w = 0; w < W; w++) {
       int word_count = dtm(d, w);
       while (word_count > 0) {
@@ -38,11 +37,10 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
   for (int k = 0; k < K; k++) {
     topic_count[k] = sum(word_topic_count(_, k));
   }
-  Rcout << "Initialized" << std::endl;
   
   NumericVector us = runif(tot_words);
   for (int j = 0; j < iter; j++) {
-    //if (j+1 % 100 == 0)
+    if ((j+1) % 100 == 0)
       Rcout << "Iteration: " << j << std::endl;
     for (int i = 0; i < tot_words; i++) {
       NumericVector Z(K);
@@ -57,12 +55,14 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
           Z[k] = Z[k] + Z[k-1];
       }
       for (int k = 0; k < K; k++) {
-        if (us[i] < Z[k] / Z[K-1]) {
+        if (us[i] < (Z[k] / Z[K-1])) {
           word_topic_count(word_id[i], word_assign[i])--;
           doc_topic_count(doc_id[i], word_assign[i])--;
+          topic_count[word_assign[i]]--;
           word_assign[i] = k;
-          word_topic_count(word_id[i], word_assign[i])++;
-          doc_topic_count(doc_id[i], word_assign[i])++;
+          word_topic_count(word_id[i], k)++;
+          doc_topic_count(doc_id[i], k)++;
+          topic_count[k]++;
           break;
         }
       }
@@ -73,7 +73,7 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
   NumericMatrix theta(D, K);
   for (int k = 0; k < K; k++) {
     for (int w = 0; w < W; w++) {
-      beta(w, k) = (word_topic_count(w, k) + eta) / (sum(word_topic_count(_, k)) + W * eta);  
+      beta(w, k) = (word_topic_count(w, k) + eta) / (topic_count(k) + W * eta);  
     } 
     for (int d = 0; d < D; d++) {
       theta(d, k) = (doc_topic_count(d, k) + alpha) / (sum(doc_topic_count(d, _)) + K * alpha);
@@ -83,6 +83,7 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
   List result;
   result["beta"] = beta;
   result["theta"] = theta;
+  result["z"] = word_assign;
   CharacterVector class_names(2); 
   class_names[0] = "lda_gibbs"; 
   class_names[1] = "lda";

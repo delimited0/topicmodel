@@ -145,6 +145,13 @@ List lda_vb(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, 
   result["log_liks"] = log_liks;
   result["e_log_theta"] = e_log_theta;
   result["e_log_beta"] = e_log_beta;
+  NumericMatrix beta(W, K);
+  for (int k = 0; k < K; k++) {
+    double colsum = sum(lambda(_, k));
+    for (int w = 0; w < W; w++) 
+      beta(w, k) = lambda(w, k) / colsum;
+  }
+  result["beta"] = beta;
   result.attr("class") = "lda";
   return result;
 }
