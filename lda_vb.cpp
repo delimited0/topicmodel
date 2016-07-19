@@ -110,7 +110,7 @@ List lda_vb(NumericMatrix dtm, int K, double alpha, double eta, double gam_tol, 
     lnew = 0.0;
     
     for (int d = 0; d < D; d++) {
-      double avg_gamma_change = 10.0;
+      double avg_gamma_change = gam_tol * 100.0;
       NumericMatrix phi = as<NumericMatrix>(phis[d]);
       NumericVector gamma_row(gammas.ncol(), 1.0);
       e_log_theta(d, _) = compute_e_log_theta(gamma_row, e_log_theta(d, _));

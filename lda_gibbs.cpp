@@ -38,8 +38,8 @@ List lda_gibbs(NumericMatrix dtm, int K, double alpha, double eta, int burnin, i
     topic_count[k] = sum(word_topic_count(_, k));
   }
   
-  NumericVector us = runif(tot_words);
   for (int j = 0; j < iter; j++) {
+    NumericVector us = runif(tot_words);
     if ((j+1) % 100 == 0)
       Rcout << "Iteration: " << j << std::endl;
     for (int i = 0; i < tot_words; i++) {
